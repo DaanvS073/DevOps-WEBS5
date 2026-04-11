@@ -1,0 +1,41 @@
+#!/usr/bin/env node
+
+const app = require("../app");
+const http = require("http");
+const { consumeMessages } = require("../services/rabbitmq");
+const { db } = require("../services/database");
+
+const port = process.env.PORT || 3005;
+app.set("port", port);
+
+const server = http.createServer(app);
+
+server.listen(port);
+server.on("error", (error) => {
+  if (error.syscall !== "listen") throw error;
+  switch (error.code) {
+    case "EACCES":
+      console.error(`Port ${port} requires elevated privileges`);
+      process.exit(1);
+      break;
+    case "EADDRINUSE":
+      console.error(`Port ${port} is already in use`);
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+});
+server.on("listening", () => {
+  console.log(`Register Service listening on port ${port}`);
+
+  // Luister naar close-registration events
+  consumeMessages("close-registration", async ({ targetId }) => {
+    await db
+      .collection("registrations")
+      .updateMany({ targetId: String(targetId) }, { $set: { open: false } });
+    console.log(`Registration closed for target ${targetId}`);
+  }).catch((err) =>
+    console.error("Failed to start close-registration consumer:", err.message)
+  );
+});
