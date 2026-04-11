@@ -1,0 +1,205 @@
+services:
+
+  # ─── Databases ───────────────────────────────────────────────────────────────
+
+  mongo-auth:
+    image: mongo:7
+    volumes:
+      - mongo-auth-data:/data/db
+    restart: unless-stopped
+
+  mongo-targets:
+    image: mongo:7
+    volumes:
+      - mongo-targets-data:/data/db
+    restart: unless-stopped
+
+  mongo-scores:
+    image: mongo:7
+    volumes:
+      - mongo-scores-data:/data/db
+    restart: unless-stopped
+
+  mongo-register:
+    image: mongo:7
+    volumes:
+      - mongo-register-data:/data/db
+    restart: unless-stopped
+
+  mongo-read:
+    image: mongo:7
+    volumes:
+      - mongo-read-data:/data/db
+    restart: unless-stopped
+
+  mongo-clock:
+    image: mongo:7
+    volumes:
+      - mongo-clock-data:/data/db
+    restart: unless-stopped
+
+  # ─── Message broker ───────────────────────────────────────────────────────────
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Application services ─────────────────────────────────────────────────────
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-development-secret-key}
+      AUTH_SERVICE_URL: http://auth-service:3001
+      TARGET_SERVICE_URL: http://target-service:3002
+      SCORE_SERVICE_URL: http://score-service:3003
+      REGISTER_SERVICE_URL: http://register-service:3005
+      READ_SERVICE_URL: http://read-service:3006
+    depends_on:
+      - auth-service
+      - target-service
+      - score-service
+      - register-service
+      - read-service
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: ./auth-service
+    environment:
+      PORT: 3001
+      MONGO_URL: mongodb://mongo-auth:27017
+      DB_NAME: auth-db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:-development-secret-key}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo-auth:
+        condition: service_started
+    restart: unless-stopped
+
+  target-service:
+    build:
+      context: ./target-service
+    environment:
+      PORT: 3002
+      MONGO_URL: mongodb://mongo-targets:27017
+      DB_NAME: targets-db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:-development-secret-key}
+    volumes:
+      - target-uploads:/app/uploads
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo-targets:
+        condition: service_started
+    restart: unless-stopped
+
+  score-service:
+    build:
+      context: ./score-service
+    environment:
+      PORT: 3003
+      MONGO_URL: mongodb://mongo-scores:27017
+      DB_NAME: scores-db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:-development-secret-key}
+      TARGET_SERVICE_URL: http://target-service:3002
+      IMAGGA_API_KEY: ${IMAGGA_API_KEY:-}
+      IMAGGA_API_SECRET: ${IMAGGA_API_SECRET:-}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo-scores:
+        condition: service_started
+    restart: unless-stopped
+
+  mail-service:
+    build:
+      context: ./mail-service
+    environment:
+      PORT: 3004
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      FROM_EMAIL: ${FROM_EMAIL:-noreply@photo-prestiges.com}
+      NODE_ENV: ${NODE_ENV:-development}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  register-service:
+    build:
+      context: ./register-service
+    environment:
+      PORT: 3005
+      MONGO_URL: mongodb://mongo-register:27017
+      DB_NAME: register-db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:-development-secret-key}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo-register:
+        condition: service_started
+    restart: unless-stopped
+
+  read-service:
+    build:
+      context: ./read-service
+    environment:
+      PORT: 3006
+      MONGO_URL: mongodb://mongo-read:27017
+      DB_NAME: read-db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo-read:
+        condition: service_started
+    restart: unless-stopped
+
+  clock-service:
+    build:
+      context: ./clock-service
+    environment:
+      PORT: 3007
+      MONGO_URL: mongodb://mongo-clock:27017
+      DB_NAME: clock-db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo-clock:
+        condition: service_started
+    restart: unless-stopped
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+
+volumes:
+  mongo-auth-data:
+  mongo-targets-data:
+  mongo-scores-data:
+  mongo-register-data:
+  mongo-read-data:
+  mongo-clock-data:
+  rabbitmq-data:
+  target-uploads:
