@@ -1,0 +1,44 @@
+name: CI Register Service
+
+on:
+  push:
+    paths:
+      - "photo-prestiges/register-service/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "photo-prestiges/register-service/**"
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./photo-prestiges/register-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: photo-prestiges/register-service/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        uses: ArtiomTr/jest-coverage-report-action@v2
+        with:
+          working-directory: photo-prestiges/register-service
+          test-script: npm test -- --coverage --coverageReporters=json
+
+      - name: Lint
+        run: npm run lint

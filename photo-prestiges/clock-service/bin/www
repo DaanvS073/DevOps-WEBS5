@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+
+const app = require("../app");
+const http = require("http");
+const { startScheduler } = require("../services/scheduler");
+const { consumeMessages } = require("../services/rabbitmq");
+const { db } = require("../services/database");
+
+const port = process.env.PORT || 3007;
+app.set("port", port);
+
+const server = http.createServer(app);
+
+server.listen(port);
+server.on("error", (error) => {
+  if (error.syscall !== "listen") throw error;
+  switch (error.code) {
+    case "EACCES":
+      console.error(`Port ${port} requires elevated privileges`);
+      process.exit(1);
+      break;
+    case "EADDRINUSE":
+      console.error(`Port ${port} is already in use`);
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+});
+server.on("listening", () => {
+  console.log(`Clock Service listening on port ${port}`);
+
+  // Luister naar target-created events en sla deadlines op
+  consumeMessages("target-created", async (message) => {
+    const { targetId, deadline, title } = message;
+    await db.collection("timers").insertOne({
+      targetId: String(targetId),
+      deadline: new Date(deadline),
+      title: title || "",
+      fired: false,
+      reminders: [],
+      createdAt: new Date(),
+    });
+    console.log(`Timer registered for target ${targetId}, deadline: ${deadline}`);
+  }).catch((err) => console.error("Failed to start target-created consumer:", err.message));
+
+  startScheduler();
+});

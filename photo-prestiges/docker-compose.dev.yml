@@ -1,0 +1,53 @@
+# Development override: live code reloading via volume mounts + nodemon
+# Gebruik: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+
+  api-gateway:
+    volumes:
+      - ./api-gateway:/app
+      - /app/node_modules
+    command: npm run dev
+
+  auth-service:
+    volumes:
+      - ./auth-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  target-service:
+    volumes:
+      - ./target-service:/app
+      - /app/node_modules
+      - target-uploads:/app/uploads
+    command: npm run dev
+
+  score-service:
+    volumes:
+      - ./score-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  mail-service:
+    volumes:
+      - ./mail-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  register-service:
+    volumes:
+      - ./register-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  read-service:
+    volumes:
+      - ./read-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  clock-service:
+    volumes:
+      - ./clock-service:/app
+      - /app/node_modules
+    command: npm run dev
