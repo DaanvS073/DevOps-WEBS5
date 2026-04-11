@@ -1,0 +1,26 @@
+name: CI auth-service
+
+on:
+  push:
+    paths: ['auth-service/**']
+  pull_request:
+    branches: [main]
+    paths: ['auth-service/**']
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./auth-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: auth-service/package-lock.json
+      - run: npm ci
+      - name: Run Tests with Coverage
+        run: npm test -- --coverage --coverageReporters=text-summary
+      - run: npm run lint

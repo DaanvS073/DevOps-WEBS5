@@ -26,36 +26,42 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// GET / — alle targets, filterbaar op city en coördinaten
+// GET / — alle targets, filterbaar op city en coördinaten, met paginering
 router.get("/", async (req, res) => {
   try {
     const { city, latitude, longitude, radius } = req.query;
-    const query = {};
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const skip = (page - 1) * limit;
 
+    const query = {};
     if (city) {
       query.city = { $regex: new RegExp(city, "i") };
     }
 
-    const targets = await db.collection("targets").find(query).toArray();
-
-    // Filter op coördinaten/radius als opgegeven
+    // Filter op coördinaten/radius — doe in-memory na ophalen (geen geo-index)
     if (latitude && longitude && radius) {
       const lat = parseFloat(latitude);
       const lng = parseFloat(longitude);
       const r = parseFloat(radius);
 
-      const filtered = targets.filter((t) => {
+      const allTargets = await db.collection("targets").find(query).toArray();
+      const filtered = allTargets.filter((t) => {
         if (!t.latitude || !t.longitude) return false;
         const dLat = t.latitude - lat;
         const dLng = t.longitude - lng;
-        const distance = Math.sqrt(dLat * dLat + dLng * dLng);
-        return distance <= r;
+        return Math.sqrt(dLat * dLat + dLng * dLng) <= r;
       });
 
-      return res.json(filtered);
+      const total = filtered.length;
+      const data = filtered.slice(skip, skip + limit);
+      return res.json({ data, total, page, limit, pages: Math.ceil(total / limit) });
     }
 
-    res.json(targets);
+    const total = await db.collection("targets").countDocuments(query);
+    const data = await db.collection("targets").find(query).skip(skip).limit(limit).toArray();
+
+    res.json({ data, total, page, limit, pages: Math.ceil(total / limit) });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch targets", details: err.message });
   }

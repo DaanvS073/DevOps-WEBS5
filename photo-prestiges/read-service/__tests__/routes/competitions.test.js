@@ -1,9 +1,16 @@
 const request = require("supertest");
 
+const mockChain = {
+  skip: jest.fn().mockReturnThis(),
+  limit: jest.fn().mockReturnThis(),
+  toArray: jest.fn(),
+};
+
 jest.mock("../../services/database", () => ({
   db: {
     collection: jest.fn().mockReturnValue({
-      find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
+      find: jest.fn().mockReturnValue(mockChain),
+      countDocuments: jest.fn(),
       updateOne: jest.fn(),
       deleteOne: jest.fn(),
     }),
@@ -22,41 +29,45 @@ const mockCollection = db.collection();
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockChain.skip.mockReturnThis();
+  mockChain.limit.mockReturnThis();
 });
 
 describe("GET /competitions", () => {
-  it("should return 200 and array of competitions", async () => {
-    mockCollection.find.mockReturnValue({
-      toArray: jest.fn().mockResolvedValue([
-        { targetId: "t1", title: "Race Amsterdam", city: "Amsterdam", status: "active" },
-        { targetId: "t2", title: "Photo Rotterdam", city: "Rotterdam", status: "active" },
-      ]),
-    });
+  it("should return 200 and paginated result with data array", async () => {
+    const items = [
+      { targetId: "t1", title: "Race Amsterdam", city: "Amsterdam", status: "active" },
+      { targetId: "t2", title: "Photo Rotterdam", city: "Rotterdam", status: "active" },
+    ];
+    mockCollection.countDocuments.mockResolvedValue(2);
+    mockChain.toArray.mockResolvedValue(items);
 
     const res = await request(app).get("/competitions");
 
     expect(res.statusCode).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBe(2);
+    expect(res.body).toHaveProperty("data");
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBe(2);
+    expect(res.body).toHaveProperty("total", 2);
+    expect(res.body).toHaveProperty("page", 1);
   });
 
-  it("should return 200 with empty array when no competitions", async () => {
-    mockCollection.find.mockReturnValue({
-      toArray: jest.fn().mockResolvedValue([]),
-    });
+  it("should return 200 with empty data array when no competitions", async () => {
+    mockCollection.countDocuments.mockResolvedValue(0);
+    mockChain.toArray.mockResolvedValue([]);
 
     const res = await request(app).get("/competitions");
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body.data).toEqual([]);
+    expect(res.body.total).toBe(0);
   });
 
   it("should pass city filter to query", async () => {
-    mockCollection.find.mockReturnValue({
-      toArray: jest.fn().mockResolvedValue([
-        { targetId: "t1", title: "Race Amsterdam", city: "Amsterdam", status: "active" },
-      ]),
-    });
+    mockCollection.countDocuments.mockResolvedValue(1);
+    mockChain.toArray.mockResolvedValue([
+      { targetId: "t1", title: "Race Amsterdam", city: "Amsterdam", status: "active" },
+    ]);
 
     const res = await request(app).get("/competitions?city=Amsterdam");
 
@@ -67,9 +78,8 @@ describe("GET /competitions", () => {
   });
 
   it("should pass status filter to query", async () => {
-    mockCollection.find.mockReturnValue({
-      toArray: jest.fn().mockResolvedValue([]),
-    });
+    mockCollection.countDocuments.mockResolvedValue(0);
+    mockChain.toArray.mockResolvedValue([]);
 
     const res = await request(app).get("/competitions?status=finished");
 

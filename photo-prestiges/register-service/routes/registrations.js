@@ -54,15 +54,18 @@ router.post("/:targetId", verifyToken, async (req, res) => {
   }
 });
 
-// GET /:targetId — alle inschreven deelnemers voor een target
+// GET /:targetId — alle inschreven deelnemers voor een target (gepagineerd)
 router.get("/:targetId", async (req, res) => {
   try {
-    const registrations = await db
-      .collection("registrations")
-      .find({ targetId: req.params.targetId })
-      .toArray();
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const skip = (page - 1) * limit;
+    const filter = { targetId: req.params.targetId };
 
-    res.json(registrations);
+    const total = await db.collection("registrations").countDocuments(filter);
+    const data = await db.collection("registrations").find(filter).skip(skip).limit(limit).toArray();
+
+    res.json({ data, total, page, limit, pages: Math.ceil(total / limit) });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch registrations", details: err.message });
   }

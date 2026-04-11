@@ -2,15 +2,23 @@ const request = require("supertest");
 const path = require("path");
 const fs = require("fs");
 
-// Mock database
+// Mock database — inclusief countDocuments en chained skip/limit
+const mockChain = {
+  skip: jest.fn().mockReturnThis(),
+  limit: jest.fn().mockReturnThis(),
+  sort: jest.fn().mockReturnThis(),
+  toArray: jest.fn(),
+};
+
 jest.mock("../../services/database", () => ({
   db: {
     collection: jest.fn().mockReturnValue({
-      find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
+      find: jest.fn().mockReturnValue(mockChain),
       findOne: jest.fn(),
       insertOne: jest.fn(),
       deleteOne: jest.fn(),
       deleteMany: jest.fn(),
+      countDocuments: jest.fn(),
     }),
   },
 }));
@@ -33,33 +41,40 @@ const mockCollection = db.collection();
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockChain.skip.mockReturnThis();
+  mockChain.limit.mockReturnThis();
+  mockChain.sort.mockReturnThis();
 });
 
 describe("GET /targets", () => {
-  it("should return 200 and an array of targets", async () => {
-    mockCollection.find.mockReturnValue({
-      toArray: jest.fn().mockResolvedValue([
-        { _id: "id1", title: "Target 1", city: "Amsterdam" },
-        { _id: "id2", title: "Target 2", city: "Rotterdam" },
-      ]),
-    });
+  it("should return 200 and a paginated result with data array", async () => {
+    const items = [
+      { _id: "id1", title: "Target 1", city: "Amsterdam" },
+      { _id: "id2", title: "Target 2", city: "Rotterdam" },
+    ];
+    mockCollection.countDocuments.mockResolvedValue(2);
+    mockChain.toArray.mockResolvedValue(items);
 
     const res = await request(app).get("/targets");
 
     expect(res.statusCode).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBe(2);
+    expect(res.body).toHaveProperty("data");
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBe(2);
+    expect(res.body).toHaveProperty("total", 2);
+    expect(res.body).toHaveProperty("page", 1);
+    expect(res.body).toHaveProperty("limit", 20);
   });
 
-  it("should return 200 with empty array when no targets", async () => {
-    mockCollection.find.mockReturnValue({
-      toArray: jest.fn().mockResolvedValue([]),
-    });
+  it("should return 200 with empty data array when no targets", async () => {
+    mockCollection.countDocuments.mockResolvedValue(0);
+    mockChain.toArray.mockResolvedValue([]);
 
     const res = await request(app).get("/targets");
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body.data).toEqual([]);
+    expect(res.body.total).toBe(0);
   });
 });
 

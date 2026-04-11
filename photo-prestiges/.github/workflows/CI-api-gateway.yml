@@ -1,0 +1,26 @@
+name: CI API Gateway
+
+on:
+  push:
+    paths: ['api-gateway/**']
+  pull_request:
+    branches: [main]
+    paths: ['api-gateway/**']
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./api-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: api-gateway/package-lock.json
+      - run: npm ci
+      - name: Run Tests with Coverage
+        run: npm test -- --coverage --coverageReporters=text-summary
+      - run: npm run lint

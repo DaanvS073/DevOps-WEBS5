@@ -20,15 +20,23 @@ function verifyToken(req, res, next) {
   }
 }
 
-// GET /:targetId — alle scores voor een target
+// GET /:targetId — alle scores voor een target (gepagineerd, gesorteerd op score desc)
 router.get("/:targetId", async (req, res) => {
   try {
-    const scores = await db
-      .collection("scores")
-      .find({ targetId: req.params.targetId })
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const skip = (page - 1) * limit;
+    const filter = { targetId: req.params.targetId };
+
+    const total = await db.collection("scores").countDocuments(filter);
+    const data = await db.collection("scores")
+      .find(filter)
+      .sort({ score: -1 })
+      .skip(skip)
+      .limit(limit)
       .toArray();
 
-    res.json(scores);
+    res.json({ data, total, page, limit, pages: Math.ceil(total / limit) });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch scores", details: err.message });
   }
