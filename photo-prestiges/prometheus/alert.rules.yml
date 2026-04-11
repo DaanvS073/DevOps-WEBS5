@@ -1,0 +1,29 @@
+groups:
+  - name: service-alerts
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} heeft meer dan 30 seconden niet gereageerd."
+
+      - alert: HighHttpErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hoog foutpercentage op {{ $labels.job }}"
+          description: "Meer dan 10% van de requests retourneert een 5xx fout."
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Trage response times op {{ $labels.job }}"
+          description: "95e percentiel response time is hoger dan 1 seconde."

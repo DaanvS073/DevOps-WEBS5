@@ -192,6 +192,40 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # ─── Monitoring ───────────────────────────────────────────────────────────────
+
+  db-exporter:
+    image: bitnami/mongodb-exporter:latest
+    environment:
+      - MONGODB_URI=mongodb://mongo-targets:27017
+    depends_on:
+      - mongo-targets
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api-gateway
+      - db-exporter
+    restart: unless-stopped
+
+  grafana:
+    build:
+      context: ./grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+
 # ─── Volumes ──────────────────────────────────────────────────────────────────
 
 volumes:
@@ -203,3 +237,5 @@ volumes:
   mongo-clock-data:
   rabbitmq-data:
   target-uploads:
+  prometheus-data:
+  grafana-data:

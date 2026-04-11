@@ -2,11 +2,15 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const { createProxyMiddleware } = require("http-proxy-middleware");
+const promBundle = require("express-prom-bundle");
 
 const verifyToken = require("./middleware/auth");
 const healthRouter = require("./routes/health");
 
 const app = express();
+
+const metricsMiddleware = promBundle({ includeMethod: true, includePath: true });
+app.use(metricsMiddleware);
 
 app.use(cors());
 app.use(morgan("dev"));
