@@ -202,6 +202,17 @@ services:
       - mongo-targets
     restart: unless-stopped
 
+  alertmanager:
+    image: prom/alertmanager:latest
+    volumes:
+      - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
+    environment:
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
+      - ALERT_EMAIL=${ALERT_EMAIL:-admin@photo-prestiges.com}
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:latest
     volumes:
@@ -213,6 +224,7 @@ services:
     depends_on:
       - api-gateway
       - db-exporter
+      - alertmanager
     restart: unless-stopped
 
   grafana:
