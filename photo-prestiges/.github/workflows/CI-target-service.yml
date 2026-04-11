@@ -1,0 +1,43 @@
+name: CI Target Service
+
+on:
+  push:
+    paths: ['target-service/**', '.github/workflows/CI-target-service.yml']
+  pull_request:
+    branches: [main]
+    paths: ['target-service/**']
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./target-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: target-service/package-lock.json
+
+      - name: Cache mongodb-memory-server binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-memory-server
+          key: mongodb-memory-server-${{ runner.os }}-${{ hashFiles('target-service/package-lock.json') }}
+          restore-keys: |
+            mongodb-memory-server-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --forceExit --coverage --coverageReporters=text-summary
+
+      - name: Lint
+        run: npm run lint

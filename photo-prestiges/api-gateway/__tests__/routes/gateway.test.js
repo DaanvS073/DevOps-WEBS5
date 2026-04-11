@@ -174,3 +174,50 @@ describe("Additional protected routes with valid token", () => {
     expect(res.statusCode).toBe(403);
   });
 });
+
+// ─── Role-based authorization ─────────────────────────────────────────────────
+
+describe("Role-based authorization", () => {
+  it("POST /targets → 403 for participant role", async () => {
+    const jwt = require("jsonwebtoken");
+    jwt.verify.mockReturnValueOnce({ userId: "user1", email: "p@test.com", role: "participant" });
+
+    const res = await request(app)
+      .post("/targets")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("DELETE /targets/:id → 403 for participant role", async () => {
+    const jwt = require("jsonwebtoken");
+    jwt.verify.mockReturnValueOnce({ userId: "user1", email: "p@test.com", role: "participant" });
+
+    const res = await request(app)
+      .delete("/targets/abc123")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("POST /targets → 200 for owner role", async () => {
+    const res = await request(app)
+      .post("/targets")
+      .set("Authorization", "Bearer valid-token"); // mock retourneert role: "owner"
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("proxied", true);
+  });
+
+  it("GET /targets → 200 for participant role (read is allowed)", async () => {
+    const jwt = require("jsonwebtoken");
+    jwt.verify.mockReturnValueOnce({ userId: "user1", email: "p@test.com", role: "participant" });
+
+    const res = await request(app)
+      .get("/targets")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("proxied", true);
+  });
+});

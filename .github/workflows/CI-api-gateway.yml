@@ -35,10 +35,7 @@ jobs:
         run: npm ci
 
       - name: Run tests with coverage
-        uses: ArtiomTr/jest-coverage-report-action@v2
-        with:
-          working-directory: photo-prestiges/api-gateway
-          test-script: npm test -- --coverage --coverageReporters=json
+        run: npm test
 
       - name: Lint
         run: npm run lint

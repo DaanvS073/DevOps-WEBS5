@@ -91,15 +91,18 @@ router.delete("/:id", verifyToken, async (req, res) => {
   }
 });
 
-// GET /:targetId — alle submissions voor een target
+// GET /:targetId — alle submissions voor een target (gepagineerd)
 router.get("/:targetId", async (req, res) => {
   try {
-    const submissions = await db
-      .collection("submissions")
-      .find({ targetId: req.params.targetId })
-      .toArray();
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const skip = (page - 1) * limit;
+    const filter = { targetId: req.params.targetId };
 
-    res.json(submissions);
+    const total = await db.collection("submissions").countDocuments(filter);
+    const data = await db.collection("submissions").find(filter).skip(skip).limit(limit).toArray();
+
+    res.json({ data, total, page, limit, pages: Math.ceil(total / limit) });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch submissions", details: err.message });
   }

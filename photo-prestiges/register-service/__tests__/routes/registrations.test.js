@@ -1,11 +1,18 @@
 const request = require("supertest");
 
+const mockChain = {
+  skip: jest.fn().mockReturnThis(),
+  limit: jest.fn().mockReturnThis(),
+  toArray: jest.fn(),
+};
+
 jest.mock("../../services/database", () => ({
   db: {
     collection: jest.fn().mockReturnValue({
       findOne: jest.fn(),
       insertOne: jest.fn(),
-      find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
+      find: jest.fn().mockReturnValue(mockChain),
+      countDocuments: jest.fn(),
       updateMany: jest.fn(),
     }),
   },
@@ -27,11 +34,13 @@ const mockCollection = db.collection();
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockChain.skip.mockReturnThis();
+  mockChain.limit.mockReturnThis();
 });
 
 describe("POST /registrations/:targetId", () => {
   it("should return 201 when registration succeeds", async () => {
-    mockCollection.findOne.mockResolvedValue(null); // geen bestaande registratie, niet gesloten
+    mockCollection.findOne.mockResolvedValue(null);
     mockCollection.insertOne.mockResolvedValue({ insertedId: "reg123" });
 
     const res = await request(app)
@@ -55,8 +64,6 @@ describe("POST /registrations/:targetId", () => {
   });
 
   it("should return 400 when registration is closed", async () => {
-    // Eerste findOne: geen bestaande registratie
-    // Tweede findOne: gesloten registratie gevonden
     mockCollection.findOne
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ targetId: "target-abc", open: false });
@@ -76,29 +83,31 @@ describe("POST /registrations/:targetId", () => {
 });
 
 describe("GET /registrations/:targetId", () => {
-  it("should return 200 and array of registrations", async () => {
-    mockCollection.find.mockReturnValue({
-      toArray: jest.fn().mockResolvedValue([
-        { targetId: "target-abc", userId: "user1", open: true },
-        { targetId: "target-abc", userId: "user2", open: true },
-      ]),
-    });
+  it("should return 200 and paginated result with data array", async () => {
+    const items = [
+      { targetId: "target-abc", userId: "user1", open: true },
+      { targetId: "target-abc", userId: "user2", open: true },
+    ];
+    mockCollection.countDocuments.mockResolvedValue(2);
+    mockChain.toArray.mockResolvedValue(items);
 
     const res = await request(app).get("/registrations/target-abc");
 
     expect(res.statusCode).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBe(2);
+    expect(res.body).toHaveProperty("data");
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBe(2);
+    expect(res.body).toHaveProperty("total", 2);
   });
 
-  it("should return 200 with empty array when no registrations", async () => {
-    mockCollection.find.mockReturnValue({
-      toArray: jest.fn().mockResolvedValue([]),
-    });
+  it("should return 200 with empty data array when no registrations", async () => {
+    mockCollection.countDocuments.mockResolvedValue(0);
+    mockChain.toArray.mockResolvedValue([]);
 
     const res = await request(app).get("/registrations/target-xyz");
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body.data).toEqual([]);
+    expect(res.body.total).toBe(0);
   });
 });
