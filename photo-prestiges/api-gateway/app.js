@@ -8,6 +8,7 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./swagger");
 
 const verifyToken = require("./middleware/auth");
+const { requireRole } = require("./middleware/auth");
 const healthRouter = require("./routes/health");
 const { proxyErrorHandler } = require("./services/circuitBreaker");
 
@@ -45,8 +46,7 @@ app.use(
 
 // ─── Beschermde routes (JWT vereist) ─────────────────────────────────────────
 
-// POST /targets/:id/submit → target-service /submissions/:id
-// Moet vóór de generieke /targets proxy staan
+// POST /targets/:id/submit — deelnemers sturen foto in (participant + owner)
 app.post(
   "/targets/:id/submit",
   verifyToken,
@@ -58,7 +58,31 @@ app.post(
   })
 );
 
-// /targets/** → target-service
+// POST /targets — alleen owners mogen targets aanmaken
+app.post(
+  "/targets",
+  verifyToken,
+  requireRole("owner"),
+  createProxyMiddleware({
+    target: TARGET_URL,
+    changeOrigin: true,
+    on: { error: proxyErrorHandler("target-service") },
+  })
+);
+
+// DELETE /targets/:id — alleen owners mogen targets verwijderen
+app.delete(
+  "/targets/:id",
+  verifyToken,
+  requireRole("owner"),
+  createProxyMiddleware({
+    target: TARGET_URL,
+    changeOrigin: true,
+    on: { error: proxyErrorHandler("target-service") },
+  })
+);
+
+// GET /targets/** — iedereen mag targets lezen
 app.use(
   "/targets",
   verifyToken,

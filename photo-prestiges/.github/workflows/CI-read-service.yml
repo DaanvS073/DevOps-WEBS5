@@ -1,11 +1,14 @@
-name: CI read-service
+name: CI Read Service
 
 on:
   push:
-    paths: ['read-service/**']
+    paths: ['read-service/**', '.github/workflows/CI-read-service.yml']
   pull_request:
     branches: [main]
     paths: ['read-service/**']
+
+permissions:
+  contents: read
 
 jobs:
   test-and-lint:
@@ -15,12 +18,26 @@ jobs:
         working-directory: ./read-service
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: read-service/package-lock.json
-      - run: npm ci
-      - name: Run Tests with Coverage
-        run: npm test -- --coverage --coverageReporters=text-summary
-      - run: npm run lint
+
+      - name: Cache mongodb-memory-server binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-memory-server
+          key: mongodb-memory-server-${{ runner.os }}-${{ hashFiles('read-service/package-lock.json') }}
+          restore-keys: |
+            mongodb-memory-server-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --forceExit --coverage --coverageReporters=text-summary
+
+      - name: Lint
+        run: npm run lint
